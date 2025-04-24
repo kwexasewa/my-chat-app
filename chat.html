@@ -1,110 +1,106 @@
 <!DOCTYPE html>
-<html lang="ku">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>چات دو نفره</title>
-    <style>
-        body {
-            font-family: Tahoma, Arial, sans-serif;
-            direction: rtl;
-            text-align: right;
-            background-color: #f4f4f4;
-            margin: 0;
-            padding: 0;
-        }
-
-        header {
-            background-color: #333;
-            color: white;
-            padding: 10px 0;
-            text-align: center;
-        }
-
-        .chat-container {
-            width: 80%;
-            margin: 20px auto;
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .messages {
-            height: 300px;
-            overflow-y: scroll;
-            background-color: #f9f9f9;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        .messages .message {
-            margin-bottom: 10px;
-        }
-
-        .messages .message p {
-            margin: 0;
-            padding: 5px;
-            background-color: #e0e0e0;
-            border-radius: 8px;
-        }
-
-        .messages .message.user1 p {
-            background-color: #4CAF50;
-            color: white;
-            text-align: left;
-        }
-
-        .messages .message.user2 p {
-            background-color: #2196F3;
-            color: white;
-            text-align: right;
-        }
-
-        input[type="text"] {
-            width: 80%;
-            padding: 10px;
-            margin-right: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-
-        input[type="submit"] {
-            padding: 10px 20px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        input[type="submit"]:hover {
-            background-color: #45a049;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase Chat</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 500px; margin: auto; }
+    #messages { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: auto; margin-bottom: 10px; }
+    input, button { margin: 5px 0; padding: 10px; width: 100%; }
+    #chat { display: none; }
+  </style>
 </head>
 <body>
+  <h2>Firebase Chat</h2>
 
-    <header>
-        <h1>چات دو نفره</h1>
-    </header>
+  <div id="auth">
+    <input type="email" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="register()">Register</button>
+    <button onclick="login()">Login</button>
+  </div>
 
-    <div class="chat-container">
-        <div class="messages" id="chatBox">
-            <!-- پیام‌ها اینجا نمایش داده خواهند شد -->
-        </div>
+  <div id="chat">
+    <div id="messages"></div>
+    <input type="text" id="messageInput" placeholder="Type a message">
+    <button onclick="sendMessage()">Send</button>
+    <button onclick="logout()">Logout</button>
+  </div>
 
-        <form id="chatForm" onsubmit="sendMessage(event)">
-            <input type="text" id="userMessage" placeholder="پیام خود را وارد کنید..." required>
-            <input type="submit" value="ارسال">
-        </form>
-    </div>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
-    <script>
-        let user1Turn = true; // کاربر اول به طور پیش فرض پیام می‌دهد
+  <!-- Your Firebase config -->
+  <script>
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+    firebase.initializeApp(firebaseConfig);
+  </script>
 
-        function sendMessage(event) {
-            event.preventDefault(); // جلوگیری از ارسال فرم
+  <script>
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    const messagesRef = db.collection("messages");
 
-            const messageInput = document.getElementById("user
+    function register() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      auth.createUserWithEmailAndPassword(email, password)
+        .then(() => alert("Registered!"))
+        .catch(err => alert(err.message));
+    }
+
+    function login() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      auth.signInWithEmailAndPassword(email, password)
+        .then(() => {
+          document.getElementById("auth").style.display = "none";
+          document.getElementById("chat").style.display = "block";
+          listenForMessages();
+        })
+        .catch(err => alert(err.message));
+    }
+
+    function logout() {
+      auth.signOut();
+      location.reload();
+    }
+
+    function sendMessage() {
+      const input = document.getElementById("messageInput");
+      const text = input.value;
+      if (text.trim() === "") return;
+      messagesRef.add({
+        text,
+        sender: auth.currentUser.email,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      input.value = "";
+    }
+
+    function listenForMessages() {
+      messagesRef.orderBy("createdAt").onSnapshot(snapshot => {
+        const messages = document.getElementById("messages");
+        messages.innerHTML = "";
+        snapshot.forEach(doc => {
+          const msg = doc.data();
+          const div = document.createElement("div");
+          div.textContent = `${msg.sender}: ${msg.text}`;
+          messages.appendChild(div);
+        });
+        messages.scrollTop = messages.scrollHeight;
+      });
+    }
+  </script>
+</body>
+</html>
